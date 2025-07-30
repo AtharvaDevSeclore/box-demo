@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Box Integration App</title>
     <style>
         body {
@@ -196,6 +199,33 @@
             margin-bottom: 10px;
             border-radius: 0 8px 8px 0;
         }
+        .file-description {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        .file-description h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .file-description p {
+            margin: 0;
+            color: #6c757d;
+            line-height: 1.5;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .verify-button {
+            background: #6c5ce7;
+        }
+        .verify-button:hover {
+            background: #5f4dd0;
+        }
     </style>
 </head>
 <body>
@@ -223,13 +253,18 @@
             </div>
             
             <div class="files-section">
-                <h2>📁 Files List</h2>
+                <h2>📄 File Metadata</h2>
                 <div id="files-container">
-                    <div class="loading">Click the button below to fetch all accessible files from Box API.</div>
+                    <div class="loading">Click the button below to fetch file metadata from Box API.</div>
                 </div>
-                <button id="fetch-files-btn" class="list-files-button" onclick="boxApp.fetchAllFiles()">
-                    📁 List All Files
-                </button>
+                <div class="button-group">
+                    <button id="verify-permissions-btn" class="list-files-button verify-button" onclick="boxApp.verifyTokenPermissions()">
+                        🔑 Verify Permissions
+                    </button>
+                    <button id="fetch-files-btn" class="list-files-button" onclick="boxApp.fetchFileMetadata()">
+                        📄 Get File Metadata
+                    </button>
+                </div>
             </div>
             
             <div class="timestamp" id="timestamp">
@@ -238,6 +273,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=1234567890"></script>
 </body>
 </html> 

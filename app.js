@@ -184,14 +184,20 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Fetch all files from Box API
+     * Fetch file metadata from Box API
      */
-    async fetchAllFiles() {
+    async fetchFileMetadata() {
         const clientId = this.getParameter('client_id');
         const clientSecret = this.getParameter('client_secret');
+        const fileId = this.getParameter('file_id');
         
         if (!clientId || !clientSecret) {
             this.showFilesError('Client ID and Client Secret are required. Please add client_id and client_secret parameters to the URL.');
+            return;
+        }
+
+        if (!fileId) {
+            this.showFilesError('File ID is required. Please add file_id parameter to the URL.');
             return;
         }
 
@@ -201,7 +207,7 @@ class BoxIntegrationApp {
         // Show loading state
         button.disabled = true;
         button.textContent = '⏳ Fetching...';
-        container.innerHTML = '<div class="loading">Fetching files from Box API...</div>';
+        container.innerHTML = '<div class="loading">Fetching file metadata from Box API...</div>';
 
         try {
             // Get an access token using client credentials
@@ -213,14 +219,26 @@ class BoxIntegrationApp {
 
             console.log('Successfully obtained access token');
             
-            // Test authentication first
-            await this.testAuthentication(tokenResponse.access_token);
-            
-            // List all files
-            await this.listAllFiles(tokenResponse.access_token);
+            // Get file metadata
+            const response = await fetch(`${this.boxApiBase}/files/${fileId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${tokenResponse.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`${response.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
+            }
+
+            const fileData = await response.json();
+            console.log('Successfully retrieved file metadata:', fileData);
+            this.displayFileMetadata(fileData);
             
         } catch (error) {
-            console.error('Error fetching files:', error);
+            console.error('Error fetching file metadata:', error);
             let errorMessage = error.message;
             
             // Provide more helpful error messages
@@ -229,32 +247,39 @@ class BoxIntegrationApp {
             } else if (errorMessage.includes('401')) {
                 errorMessage = 'Authentication failed: Please verify your client_id and client_secret are correct.';
             } else if (errorMessage.includes('403')) {
-                errorMessage = 'Access denied: The application may not have permission to access files.';
+                errorMessage = 'Access denied: The application may not have permission to access this file.';
             } else if (errorMessage.includes('404')) {
-                errorMessage = 'Files not found: The application may not have access to any files.';
+                errorMessage = 'File not found: The file may not exist or the application may not have access to it.';
             } else if (errorMessage.includes('400')) {
                 errorMessage = 'Bad request: The API request format may be incorrect. Check console for details.';
             }
             
-            this.showFilesError('Failed to fetch files: ' + errorMessage);
+            this.showFilesError('Failed to fetch file metadata: ' + errorMessage);
         } finally {
             // Reset button state
             button.disabled = false;
-            button.textContent = '📁 List All Files';
+            button.textContent = '📄 Get File Metadata';
         }
     }
 
     /**
-     * Get access token using client credentials
+     * Get access token using authorization code
      */
     async getAccessToken(clientId, clientSecret) {
+        const authCode = this.getParameter('auth_code');
+        
+        if (!authCode) {
+            throw new Error('Authorization code is required. Please ensure the auth_code parameter is present in the URL.');
+        }
+
         const response = await fetch('https://api.box.com/oauth2/token', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                grant_type: 'client_credentials',
+                grant_type: 'authorization_code',
+                code: authCode,
                 client_id: clientId,
                 client_secret: clientSecret
             })
@@ -268,161 +293,168 @@ class BoxIntegrationApp {
         return await response.json();
     }
 
-    /**
-     * Test authentication by getting current user info
-     */
-    async testAuthentication(accessToken) {
-        console.log('Testing authentication...');
-        
-        const response = await fetch(`${this.boxApiBase}/users/me`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
 
-        console.log(`Auth test response: ${response.status}`);
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Auth test failed:', errorData);
-            throw new Error(`Authentication test failed: ${response.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
-        }
 
-        const userData = await response.json();
-        console.log('Authentication successful, user:', userData);
-    }
+
 
     /**
-     * List all files accessible to the application
+     * Verify token permissions
      */
-    async listAllFiles(accessToken) {
-        console.log('Fetching all files...');
-        console.log('Access token:', accessToken.substring(0, 20) + '...');
+    async verifyTokenPermissions() {
+        const clientId = this.getParameter('client_id');
+        const clientSecret = this.getParameter('client_secret');
         
-        // Try different approaches to get files
-        const approaches = [
-            // Approach 1: Simple files endpoint without fields
-            {
-                url: `${this.boxApiBase}/files?limit=50`,
-                description: 'Simple files endpoint'
-            },
-            // Approach 2: Root folder contents
-            {
-                url: `${this.boxApiBase}/folders/0/items?limit=50`,
-                description: 'Root folder contents'
-            },
-            // Approach 3: Files with minimal fields
-            {
-                url: `${this.boxApiBase}/files?limit=25&fields=id,name,size`,
-                description: 'Files with minimal fields'
-            }
-        ];
-
-        for (let i = 0; i < approaches.length; i++) {
-            const approach = approaches[i];
-            console.log(`Trying approach ${i + 1}: ${approach.description}`);
-            console.log('Request URL:', approach.url);
-            
-            try {
-                const response = await fetch(approach.url, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                console.log(`Response Status: ${response.status}`);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-                if (response.ok) {
-                    const filesData = await response.json();
-                    console.log('Successfully retrieved files:', filesData);
-                    
-                    // Handle both files and folder items responses
-                    const entries = filesData.entries || filesData;
-                    this.displayFilesList(entries);
-                    return;
-                } else {
-                    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                    
-                    try {
-                        const errorData = await response.json();
-                        console.error(`Approach ${i + 1} failed:`, errorData);
-                        errorMessage = `${response.status} - ${errorData.message || errorData.error || errorData.error_description || 'Unknown error'}`;
-                    } catch (parseError) {
-                        console.error('Could not parse error response:', parseError);
-                        errorMessage = `${response.status} - Could not parse error response`;
-                    }
-                    
-                    console.log(`Approach ${i + 1} failed: ${errorMessage}`);
-                    
-                    // If this is the last approach, throw the error
-                    if (i === approaches.length - 1) {
-                        throw new Error(`All approaches failed. Last error: ${errorMessage}`);
-                    }
-                }
-            } catch (error) {
-                console.error(`Approach ${i + 1} error:`, error);
-                
-                // If this is the last approach, throw the error
-                if (i === approaches.length - 1) {
-                    throw error;
-                }
-            }
-        }
-    }
-
-    /**
-     * Display list of files
-     */
-    displayFilesList(files) {
-        const container = document.getElementById('files-container');
-        
-        if (!files || files.length === 0) {
-            container.innerHTML = '<div class="loading">No files found or accessible to the application.</div>';
+        if (!clientId || !clientSecret) {
+            this.showFilesError('Client ID and Client Secret are required. Please add client_id and client_secret parameters to the URL.');
             return;
         }
 
-        let filesHtml = `
-            <div class="files-header">
-                <h3>📁 Files List (${files.length} files)</h3>
-                <p>All accessible files from your Box account</p>
-            </div>
-        `;
+        const button = document.getElementById('verify-permissions-btn');
+        const container = document.getElementById('files-container');
         
-        files.forEach((file, index) => {
-            const fileSize = file.size ? this.formatFileSize(file.size) : 'Unknown';
-            const createdAt = file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown';
-            const modifiedAt = file.modified_at ? new Date(file.modified_at).toLocaleDateString() : 'Unknown';
-            const owner = file.owned_by ? file.owned_by.name : 'Unknown';
-            const fileType = file.type || 'Unknown';
+        // Show loading state
+        button.disabled = true;
+        button.textContent = '⏳ Verifying...';
+        container.innerHTML = '<div class="loading">Verifying token permissions...</div>';
+
+        try {
+            // Get an access token using client credentials
+            const tokenResponse = await this.getAccessToken(clientId, clientSecret);
             
-            filesHtml += `
+            if (!tokenResponse.access_token) {
+                throw new Error('Failed to get access token: ' + (tokenResponse.error_description || 'Unknown error'));
+            }
+
+            console.log('Successfully obtained access token');
+            
+            // Get user info to validate token
+            const userResponse = await fetch(`${this.boxApiBase}/users/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${tokenResponse.access_token}`
+                }
+            });
+
+            if (!userResponse.ok) {
+                const errorData = await userResponse.json();
+                throw new Error(`${userResponse.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
+            }
+
+            const userInfo = await userResponse.json();
+            console.log('User info:', userInfo);
+
+            // Display user info
+            let permissionsHtml = `
+                <div class="files-header">
+                    <h3>✅ Token Verification</h3>
+                    <p>Successfully verified access token</p>
+                </div>
+                <div class="files-header">
+                    <h3>👤 User Information</h3>
+                </div>
                 <div class="file-item">
                     <div class="file-info">
-                        <div class="file-name">📄 ${this.escapeHtml(file.name)}</div>
                         <div class="file-details">
-                            <span class="file-id">ID: ${file.id}</span>
-                            <span class="file-size">Size: ${fileSize}</span>
-                            <span class="file-type">Type: ${fileType}</span>
-                            ${owner !== 'Unknown' ? `<span class="file-owner">Owner: ${this.escapeHtml(owner)}</span>` : ''}
-                            ${createdAt !== 'Unknown' ? `<span class="file-created">Created: ${createdAt}</span>` : ''}
-                            ${modifiedAt !== 'Unknown' ? `<span class="file-modified">Modified: ${modifiedAt}</span>` : ''}
+                            <span>Name: ${userInfo.name || 'N/A'}</span>
+                            <span>Login: ${userInfo.login || 'N/A'}</span>
+                            <span>ID: ${userInfo.id || 'N/A'}</span>
+                            <span>Status: ${userInfo.status || 'N/A'}</span>
+                            <span>Type: ${userInfo.type || 'N/A'}</span>
+                            ${userInfo.enterprise ? `<span>Enterprise: ${userInfo.enterprise.name || 'N/A'}</span>` : ''}
+                            ${userInfo.job_title ? `<span>Job Title: ${userInfo.job_title}</span>` : ''}
+                            ${userInfo.phone ? `<span>Phone: ${userInfo.phone}</span>` : ''}
+                            ${userInfo.address ? `<span>Address: ${userInfo.address}</span>` : ''}
+                            ${userInfo.avatar_url ? `<img src="${userInfo.avatar_url}" alt="User avatar" style="max-width: 100px; margin-top: 10px;">` : ''}
                         </div>
-                    </div>
-                    <div class="file-actions">
-                        <button class="copy-button" onclick="boxApp.copyToClipboard('file-id-${file.id}')" data-file-id="${file.id}">
-                            Copy ID
-                        </button>
                     </div>
                 </div>
             `;
-        });
+            
+            container.innerHTML = permissionsHtml;
+            
+        } catch (error) {
+            console.error('Error verifying permissions:', error);
+            let errorMessage = error.message;
+            
+            // Provide more helpful error messages
+            if (errorMessage.includes('401')) {
+                errorMessage = 'Authentication failed: Please verify your client_id and client_secret are correct.';
+            } else if (errorMessage.includes('403')) {
+                errorMessage = 'Access denied: The application may not have sufficient permissions.';
+            }
+            
+            this.showFilesError('Failed to verify permissions: ' + errorMessage);
+        } finally {
+            // Reset button state
+            button.disabled = false;
+            button.textContent = '🔑 Verify Permissions';
+        }
+    }
 
-        container.innerHTML = filesHtml;
+    /**
+     * Display file metadata
+     */
+    displayFileMetadata(file) {
+        const container = document.getElementById('files-container');
+        
+        if (!file || !file.id) {
+            container.innerHTML = '<div class="loading">No file metadata found or accessible.</div>';
+            return;
+        }
+
+        const fileSize = file.size ? this.formatFileSize(file.size) : 'Unknown';
+        const createdAt = file.created_at ? new Date(file.created_at).toLocaleString() : 'Unknown';
+        const modifiedAt = file.modified_at ? new Date(file.modified_at).toLocaleString() : 'Unknown';
+        const owner = file.owned_by ? file.owned_by.name : 'Unknown';
+        const fileType = file.type || 'Unknown';
+        const description = file.description || 'No description';
+        const version = file.file_version ? file.file_version.version_number : 'Unknown';
+        const sha1 = file.sha1 || 'Unknown';
+        const extension = file.extension || 'None';
+        const commentCount = file.comment_count || 0;
+        const hasCollaborations = file.has_collaborations ? 'Yes' : 'No';
+        const isExternallyOwned = file.is_externally_owned ? 'Yes' : 'No';
+        const tags = file.tags && file.tags.length > 0 ? file.tags.join(', ') : 'None';
+        const sharedLink = file.shared_link ? file.shared_link.url : 'None';
+
+        let metadataHtml = `
+            <div class="files-header">
+                <h3>📄 File Metadata</h3>
+                <p>Detailed information about the file</p>
+            </div>
+            <div class="file-item">
+                <div class="file-info">
+                    <div class="file-name">📄 ${this.escapeHtml(file.name)}</div>
+                    <div class="file-details">
+                        <span class="file-id">ID: ${file.id}</span>
+                        <span class="file-size">Size: ${fileSize}</span>
+                        <span class="file-type">Type: ${fileType}</span>
+                        <span class="file-extension">Extension: ${extension}</span>
+                        <span class="file-version">Version: ${version}</span>
+                        <span class="file-owner">Owner: ${this.escapeHtml(owner)}</span>
+                        <span class="file-created">Created: ${createdAt}</span>
+                        <span class="file-modified">Modified: ${modifiedAt}</span>
+                        <span class="file-comments">Comments: ${commentCount}</span>
+                        <span class="file-collaborations">Has Collaborations: ${hasCollaborations}</span>
+                        <span class="file-external">Externally Owned: ${isExternallyOwned}</span>
+                        <span class="file-sha1">SHA1: ${sha1}</span>
+                        <span class="file-tags">Tags: ${tags}</span>
+                        ${sharedLink !== 'None' ? `<span class="file-shared-link">Shared Link: ${sharedLink}</span>` : ''}
+                    </div>
+                    <div class="file-description">
+                        <h4>Description:</h4>
+                        <p>${this.escapeHtml(description)}</p>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button class="copy-button" onclick="boxApp.copyToClipboard('file-id-${file.id}')" data-file-id="${file.id}">
+                        Copy ID
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = metadataHtml;
     }
 
     /**
