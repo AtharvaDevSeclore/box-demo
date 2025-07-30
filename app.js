@@ -1,7 +1,6 @@
 /**
- * Box Integration App - Query Parameter Display and File Metadata
+ * Box Integration App - Query Parameter Display
  * This script handles parsing and displaying all query parameters from the URL
- * and fetches file metadata from Box API
  */
 
 class BoxIntegrationApp {
@@ -187,17 +186,17 @@ class BoxIntegrationApp {
     /**
      * Fetch all files from Box API
      */
-    async fetchFileMetadata() {
+    async fetchAllFiles() {
         const clientId = this.getParameter('client_id');
         const clientSecret = this.getParameter('client_secret');
         
         if (!clientId || !clientSecret) {
-            this.showMetadataError('Client ID and Client Secret are required. Please add client_id and client_secret parameters to the URL.');
+            this.showFilesError('Client ID and Client Secret are required. Please add client_id and client_secret parameters to the URL.');
             return;
         }
 
-        const button = document.getElementById('fetch-metadata-btn');
-        const container = document.getElementById('metadata-container');
+        const button = document.getElementById('fetch-files-btn');
+        const container = document.getElementById('files-container');
         
         // Show loading state
         button.disabled = true;
@@ -223,21 +222,45 @@ class BoxIntegrationApp {
             
             // Provide more helpful error messages
             if (errorMessage.includes('box_subject_id')) {
-                errorMessage = 'Authentication error: Please check your Box application configuration. The app may need enterprise access or different authentication settings.';
+                errorMessage = 'Authentication error: Please check your Box application configuration.';
             } else if (errorMessage.includes('401')) {
                 errorMessage = 'Authentication failed: Please verify your client_id and client_secret are correct.';
             } else if (errorMessage.includes('403')) {
-                errorMessage = 'Access denied: The application may not have permission to access files or the Box API.';
+                errorMessage = 'Access denied: The application may not have permission to access files.';
             } else if (errorMessage.includes('404')) {
                 errorMessage = 'Files not found: The application may not have access to any files.';
             }
             
-            this.showMetadataError('Failed to fetch files: ' + errorMessage);
+            this.showFilesError('Failed to fetch files: ' + errorMessage);
         } finally {
             // Reset button state
             button.disabled = false;
-            button.textContent = '📁 Fetch All Files';
+            button.textContent = '📁 List All Files';
         }
+    }
+
+    /**
+     * Get access token using client credentials
+     */
+    async getAccessToken(clientId, clientSecret) {
+        const response = await fetch('https://api.box.com/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: clientId,
+                client_secret: clientSecret
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Token request failed: ${response.status} - ${errorData.error_description || errorData.error}`);
+        }
+
+        return await response.json();
     }
 
     /**
@@ -264,14 +287,14 @@ class BoxIntegrationApp {
 
         const filesData = await response.json();
         console.log('Successfully retrieved files:', filesData);
-        this.displayFilesList(filesData.entries, accessToken);
+        this.displayFilesList(filesData.entries);
     }
 
     /**
      * Display list of files
      */
-    displayFilesList(files, accessToken) {
-        const container = document.getElementById('metadata-container');
+    displayFilesList(files) {
+        const container = document.getElementById('files-container');
         
         if (!files || files.length === 0) {
             container.innerHTML = '<div class="loading">No files found or accessible to the application.</div>';
@@ -317,61 +340,6 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Get access token using client credentials
-     */
-    async getAccessToken(clientId, clientSecret) {
-        // Try different authentication approaches
-        const authMethods = [
-            // Method 1: Basic client credentials
-            {
-                grant_type: 'client_credentials',
-                client_id: clientId,
-                client_secret: clientSecret
-            },
-            // Method 2: With enterprise subject type
-            {
-                grant_type: 'client_credentials',
-                client_id: clientId,
-                client_secret: clientSecret,
-                box_subject_type: 'enterprise'
-            }
-        ];
-
-        for (let i = 0; i < authMethods.length; i++) {
-            try {
-                console.log(`Trying authentication method ${i + 1}...`);
-                
-                const response = await fetch('https://api.box.com/oauth2/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams(authMethods[i])
-                });
-
-                if (response.ok) {
-                    const tokenData = await response.json();
-                    console.log(`Authentication method ${i + 1} successful`);
-                    return tokenData;
-                } else {
-                    const errorData = await response.json();
-                    console.log(`Authentication method ${i + 1} failed:`, errorData);
-                    
-                    // If this is the last method, throw the error
-                    if (i === authMethods.length - 1) {
-                        throw new Error(`Token request failed: ${response.status} - ${errorData.error_description || errorData.error}`);
-                    }
-                }
-            } catch (error) {
-                // If this is the last method, throw the error
-                if (i === authMethods.length - 1) {
-                    throw error;
-                }
-            }
-        }
-    }
-
-    /**
      * Format file size in human readable format
      */
     formatFileSize(bytes) {
@@ -385,10 +353,10 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Show metadata error
+     * Show files error
      */
-    showMetadataError(message) {
-        const container = document.getElementById('metadata-container');
+    showFilesError(message) {
+        const container = document.getElementById('files-container');
         container.innerHTML = `<div class="error">${this.escapeHtml(message)}</div>`;
     }
 }

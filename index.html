@@ -101,63 +101,10 @@
         .copy-button:active {
             transform: scale(0.95);
         }
-        .metadata-section {
+        .files-section {
             margin-top: 30px;
             padding-top: 30px;
             border-top: 2px solid #e9ecef;
-        }
-        .metadata-item {
-            background: #f8f9fa;
-            border-left: 4px solid #28a745;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 0 8px 8px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .metadata-name {
-            font-weight: bold;
-            color: #495057;
-            min-width: 200px;
-        }
-        .metadata-value {
-            color: #6c757d;
-            word-break: break-all;
-            flex: 1;
-            margin-left: 20px;
-        }
-        .loading {
-            text-align: center;
-            color: #6c757d;
-            font-style: italic;
-            padding: 40px;
-        }
-        .error {
-            background: #f8d7da;
-            border-left: 4px solid #dc3545;
-            color: #721c24;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 0 8px 8px 0;
-        }
-        .fetch-button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1em;
-            margin-top: 10px;
-            transition: background 0.3s;
-        }
-        .fetch-button:hover {
-            background: #218838;
-        }
-        .fetch-button:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
         }
         .files-header {
             margin-bottom: 20px;
@@ -217,22 +164,37 @@
             gap: 8px;
             margin-left: 15px;
         }
-        .metadata-button {
+        .list-files-button {
             background: #28a745;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 12px 24px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 0.9em;
+            font-size: 1em;
+            margin-top: 10px;
             transition: background 0.3s;
-            white-space: nowrap;
         }
-        .metadata-button:hover {
+        .list-files-button:hover {
             background: #218838;
         }
-        .metadata-button:active {
-            transform: scale(0.95);
+        .list-files-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px;
+        }
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
         }
     </style>
 </head>
@@ -240,7 +202,7 @@
     <div class="container">
         <div class="header">
             <h1>📦 Box Integration App</h1>
-            <p>Displaying query parameters and file metadata</p>
+            <p>Displaying all query parameters from the URL</p>
         </div>
         
         <div class="content">
@@ -260,13 +222,13 @@
                 </div>
             </div>
             
-            <div class="metadata-section">
+            <div class="files-section">
                 <h2>📁 Files List</h2>
-                <div id="metadata-container">
+                <div id="files-container">
                     <div class="loading">Click the button below to fetch all accessible files from Box API.</div>
                 </div>
-                <button id="fetch-metadata-btn" class="fetch-button" onclick="boxApp.fetchFileMetadata()">
-                    📁 Fetch All Files
+                <button id="fetch-files-btn" class="list-files-button" onclick="boxApp.fetchAllFiles()">
+                    📁 List All Files
                 </button>
             </div>
             
