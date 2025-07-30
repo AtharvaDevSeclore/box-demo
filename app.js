@@ -203,7 +203,7 @@ class BoxIntegrationApp {
         // Show loading state
         button.disabled = true;
         button.textContent = '⏳ Fetching...';
-        container.innerHTML = '<div class="loading">Fetching file metadata from Box API...</div>';
+        container.innerHTML = '<div class="loading">Fetching files from Box API...</div>';
 
         try {
             // First, get an access token using client credentials
@@ -215,17 +215,26 @@ class BoxIntegrationApp {
 
             console.log('Successfully obtained access token');
             
-            // If file_id is provided, get metadata for that specific file
+            // Always list all files first
+            await this.listAllFiles(tokenResponse.access_token);
+            
+            // If file_id is provided, also show metadata for that specific file
             if (fileId) {
-                const metadata = await this.getFileMetadata(fileId, tokenResponse.access_token);
-                this.displayFileMetadata(metadata);
-            } else {
-                // Otherwise, list all files
-                await this.listAllFiles(tokenResponse.access_token);
+                console.log('File ID provided, also fetching metadata for specific file:', fileId);
+                // Add a small delay to ensure the files list is displayed first
+                setTimeout(async () => {
+                    try {
+                        const metadata = await this.getFileMetadata(fileId, tokenResponse.access_token);
+                        this.displayFileMetadata(metadata);
+                    } catch (error) {
+                        console.error('Error fetching specific file metadata:', error);
+                        // Don't show error in UI since files list is already displayed
+                    }
+                }, 1000);
             }
             
         } catch (error) {
-            console.error('Error fetching file metadata:', error);
+            console.error('Error fetching files:', error);
             let errorMessage = error.message;
             
             // Provide more helpful error messages
@@ -234,16 +243,16 @@ class BoxIntegrationApp {
             } else if (errorMessage.includes('401')) {
                 errorMessage = 'Authentication failed: Please verify your client_id and client_secret are correct.';
             } else if (errorMessage.includes('403')) {
-                errorMessage = 'Access denied: The application may not have permission to access this file or the Box API.';
+                errorMessage = 'Access denied: The application may not have permission to access files or the Box API.';
             } else if (errorMessage.includes('404')) {
-                errorMessage = 'File not found: The specified file_id does not exist or is not accessible.';
+                errorMessage = 'Files not found: The application may not have access to any files.';
             }
             
-            this.showMetadataError('Failed to fetch file metadata: ' + errorMessage);
+            this.showMetadataError('Failed to fetch files: ' + errorMessage);
         } finally {
             // Reset button state
             button.disabled = false;
-            button.textContent = '🔍 Fetch File Metadata';
+            button.textContent = '🔍 Fetch Files & Metadata';
         }
     }
 
