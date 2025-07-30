@@ -73,6 +73,10 @@ class BoxIntegrationApp {
         
         if (elementId === 'current-url') {
             textToCopy = window.location.href;
+        } else if (elementId.startsWith('file-id-')) {
+            // Handle file ID copying
+            const fileId = elementId.replace('file-id-', '');
+            textToCopy = fileId;
         } else {
             const urlParams = new URLSearchParams(window.location.search);
             textToCopy = urlParams.get(elementId) || '';
@@ -188,11 +192,6 @@ class BoxIntegrationApp {
         const clientId = this.getParameter('client_id');
         const clientSecret = this.getParameter('client_secret');
         
-        if (!fileId) {
-            this.showMetadataError('File ID is required. Please add file_id parameter to the URL.');
-            return;
-        }
-
         if (!clientId || !clientSecret) {
             this.showMetadataError('Client ID and Client Secret are required. Please add client_id and client_secret parameters to the URL.');
             return;
@@ -216,9 +215,14 @@ class BoxIntegrationApp {
 
             console.log('Successfully obtained access token');
             
-            // Then fetch file metadata
-            const metadata = await this.getFileMetadata(fileId, tokenResponse.access_token);
-            this.displayFileMetadata(metadata);
+            // If file_id is provided, get metadata for that specific file
+            if (fileId) {
+                const metadata = await this.getFileMetadata(fileId, tokenResponse.access_token);
+                this.displayFileMetadata(metadata);
+            } else {
+                // Otherwise, list all files
+                await this.listAllFiles(tokenResponse.access_token);
+            }
             
         } catch (error) {
             console.error('Error fetching file metadata:', error);
@@ -240,6 +244,103 @@ class BoxIntegrationApp {
             // Reset button state
             button.disabled = false;
             button.textContent = '🔍 Fetch File Metadata';
+        }
+    }
+
+    /**
+     * List all files accessible to the application
+     */
+    async listAllFiles(accessToken) {
+        console.log('Fetching all files...');
+        
+        const response = await fetch(`${this.boxApiBase}/files?limit=100&fields=id,name,size,created_at,modified_at,owned_by,type`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log(`Files API Response Status: ${response.status}`);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Box API Error Response:', errorData);
+            throw new Error(`Failed to fetch files: ${response.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
+        }
+
+        const filesData = await response.json();
+        console.log('Successfully retrieved files:', filesData);
+        this.displayFilesList(filesData.entries, accessToken);
+    }
+
+    /**
+     * Display list of files with metadata buttons
+     */
+    displayFilesList(files, accessToken) {
+        const container = document.getElementById('metadata-container');
+        
+        if (!files || files.length === 0) {
+            container.innerHTML = '<div class="loading">No files found or accessible to the application.</div>';
+            return;
+        }
+
+        let filesHtml = `
+            <div class="files-header">
+                <h3>📁 Files List (${files.length} files)</h3>
+                <p>Click "Get Metadata" to view detailed information for each file</p>
+            </div>
+        `;
+        
+        files.forEach((file, index) => {
+            const fileSize = file.size ? this.formatFileSize(file.size) : 'Unknown';
+            const createdAt = file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown';
+            const modifiedAt = file.modified_at ? new Date(file.modified_at).toLocaleDateString() : 'Unknown';
+            const owner = file.owned_by ? file.owned_by.name : 'Unknown';
+            
+            filesHtml += `
+                <div class="file-item">
+                    <div class="file-info">
+                        <div class="file-name">📄 ${this.escapeHtml(file.name)}</div>
+                        <div class="file-details">
+                            <span class="file-id">ID: ${file.id}</span>
+                            <span class="file-size">Size: ${fileSize}</span>
+                            <span class="file-type">Type: ${file.type}</span>
+                            <span class="file-owner">Owner: ${this.escapeHtml(owner)}</span>
+                            <span class="file-created">Created: ${createdAt}</span>
+                            <span class="file-modified">Modified: ${modifiedAt}</span>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="metadata-button" onclick="boxApp.getFileMetadataForDisplay('${file.id}', '${accessToken}')">
+                            🔍 Get Metadata
+                        </button>
+                        <button class="copy-button" onclick="boxApp.copyToClipboard('file-id-${file.id}')" data-file-id="${file.id}">
+                            Copy ID
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = filesHtml;
+    }
+
+    /**
+     * Get and display metadata for a specific file
+     */
+    async getFileMetadataForDisplay(fileId, accessToken) {
+        const container = document.getElementById('metadata-container');
+        
+        // Show loading state
+        container.innerHTML = '<div class="loading">Fetching metadata for file ID: ' + fileId + '...</div>';
+        
+        try {
+            const metadata = await this.getFileMetadata(fileId, accessToken);
+            this.displayFileMetadata(metadata);
+        } catch (error) {
+            console.error('Error fetching file metadata:', error);
+            this.showMetadataError('Failed to fetch metadata for file ' + fileId + ': ' + error.message);
         }
     }
 
