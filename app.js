@@ -185,10 +185,9 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Fetch file metadata from Box API
+     * Fetch all files from Box API
      */
     async fetchFileMetadata() {
-        const fileId = this.getParameter('file_id');
         const clientId = this.getParameter('client_id');
         const clientSecret = this.getParameter('client_secret');
         
@@ -206,7 +205,7 @@ class BoxIntegrationApp {
         container.innerHTML = '<div class="loading">Fetching files from Box API...</div>';
 
         try {
-            // First, get an access token using client credentials
+            // Get an access token using client credentials
             const tokenResponse = await this.getAccessToken(clientId, clientSecret);
             
             if (!tokenResponse.access_token) {
@@ -215,23 +214,8 @@ class BoxIntegrationApp {
 
             console.log('Successfully obtained access token');
             
-            // Always list all files first
+            // List all files
             await this.listAllFiles(tokenResponse.access_token);
-            
-            // If file_id is provided, also show metadata for that specific file
-            if (fileId) {
-                console.log('File ID provided, also fetching metadata for specific file:', fileId);
-                // Add a small delay to ensure the files list is displayed first
-                setTimeout(async () => {
-                    try {
-                        const metadata = await this.getFileMetadata(fileId, tokenResponse.access_token);
-                        this.displayFileMetadata(metadata);
-                    } catch (error) {
-                        console.error('Error fetching specific file metadata:', error);
-                        // Don't show error in UI since files list is already displayed
-                    }
-                }, 1000);
-            }
             
         } catch (error) {
             console.error('Error fetching files:', error);
@@ -252,7 +236,7 @@ class BoxIntegrationApp {
         } finally {
             // Reset button state
             button.disabled = false;
-            button.textContent = '🔍 Fetch Files & Metadata';
+            button.textContent = '📁 Fetch All Files';
         }
     }
 
@@ -284,7 +268,7 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Display list of files with metadata buttons
+     * Display list of files
      */
     displayFilesList(files, accessToken) {
         const container = document.getElementById('metadata-container');
@@ -297,7 +281,7 @@ class BoxIntegrationApp {
         let filesHtml = `
             <div class="files-header">
                 <h3>📁 Files List (${files.length} files)</h3>
-                <p>Click "Get Metadata" to view detailed information for each file</p>
+                <p>All accessible files from your Box account</p>
             </div>
         `;
         
@@ -321,9 +305,6 @@ class BoxIntegrationApp {
                         </div>
                     </div>
                     <div class="file-actions">
-                        <button class="metadata-button" onclick="boxApp.getFileMetadataForDisplay('${file.id}', '${accessToken}')">
-                            🔍 Get Metadata
-                        </button>
                         <button class="copy-button" onclick="boxApp.copyToClipboard('file-id-${file.id}')" data-file-id="${file.id}">
                             Copy ID
                         </button>
@@ -333,24 +314,6 @@ class BoxIntegrationApp {
         });
 
         container.innerHTML = filesHtml;
-    }
-
-    /**
-     * Get and display metadata for a specific file
-     */
-    async getFileMetadataForDisplay(fileId, accessToken) {
-        const container = document.getElementById('metadata-container');
-        
-        // Show loading state
-        container.innerHTML = '<div class="loading">Fetching metadata for file ID: ' + fileId + '...</div>';
-        
-        try {
-            const metadata = await this.getFileMetadata(fileId, accessToken);
-            this.displayFileMetadata(metadata);
-        } catch (error) {
-            console.error('Error fetching file metadata:', error);
-            this.showMetadataError('Failed to fetch metadata for file ' + fileId + ': ' + error.message);
-        }
     }
 
     /**
@@ -409,105 +372,6 @@ class BoxIntegrationApp {
     }
 
     /**
-     * Get file metadata from Box API
-     */
-    async getFileMetadata(fileId, accessToken) {
-        const response = await fetch(`${this.boxApiBase}/files/${fileId}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`File metadata request failed: ${response.status} - ${errorData.message || errorData.error}`);
-        }
-
-        return await response.json();
-    }
-
-    /**
-     * Display file metadata in the UI
-     */
-    displayFileMetadata(metadata) {
-        const container = document.getElementById('metadata-container');
-        
-        const metadataFields = [
-            { key: 'id', label: 'File ID' },
-            { key: 'name', label: 'File Name' },
-            { key: 'type', label: 'Type' },
-            { key: 'size', label: 'Size (bytes)' },
-            { key: 'created_at', label: 'Created At' },
-            { key: 'modified_at', label: 'Modified At' },
-            { key: 'description', label: 'Description' },
-            { key: 'path_collection', label: 'Path Collection' },
-            { key: 'owned_by', label: 'Owned By' },
-            { key: 'shared_link', label: 'Shared Link' },
-            { key: 'parent', label: 'Parent Folder' },
-            { key: 'item_status', label: 'Item Status' },
-            { key: 'version_number', label: 'Version Number' },
-            { key: 'comment_count', label: 'Comment Count' },
-            { key: 'permissions', label: 'Permissions' },
-            { key: 'tags', label: 'Tags' },
-            { key: 'lock', label: 'Lock Status' },
-            { key: 'extension', label: 'Extension' },
-            { key: 'is_package', label: 'Is Package' },
-            { key: 'expires_at', label: 'Expires At' },
-            { key: 'representations', label: 'Representations' },
-            { key: 'classification', label: 'Classification' },
-            { key: 'watermark_info', label: 'Watermark Info' },
-            { key: 'is_externally_owned', label: 'Is Externally Owned' },
-            { key: 'has_collaborations', label: 'Has Collaborations' },
-            { key: 'metadata', label: 'Metadata' },
-            { key: 'fields', label: 'Fields' },
-            { key: 'etag', label: 'ETag' },
-            { key: 'sequence_id', label: 'Sequence ID' },
-            { key: 'sha1', label: 'SHA1' },
-            { key: 'file_version', label: 'File Version' }
-        ];
-
-        let metadataHtml = '';
-        
-        metadataFields.forEach(field => {
-            const value = metadata[field.key];
-            if (value !== undefined && value !== null) {
-                let displayValue = value;
-                
-                // Format dates
-                if (field.key.includes('_at') && typeof value === 'string') {
-                    displayValue = new Date(value).toLocaleString();
-                }
-                
-                // Format size
-                if (field.key === 'size' && typeof value === 'number') {
-                    displayValue = this.formatFileSize(value);
-                }
-                
-                // Format objects as JSON
-                if (typeof value === 'object') {
-                    displayValue = JSON.stringify(value, null, 2);
-                }
-                
-                metadataHtml += `
-                    <div class="metadata-item">
-                        <span class="metadata-name">${field.label}:</span>
-                        <span class="metadata-value">${this.escapeHtml(displayValue.toString())}</span>
-                        <button class="copy-button" onclick="boxApp.copyMetadataValue('${this.escapeHtml(displayValue.toString())}')">Copy</button>
-                    </div>
-                `;
-            }
-        });
-
-        if (metadataHtml === '') {
-            metadataHtml = '<div class="loading">No metadata available for this file.</div>';
-        }
-
-        container.innerHTML = metadataHtml;
-    }
-
-    /**
      * Format file size in human readable format
      */
     formatFileSize(bytes) {
@@ -518,18 +382,6 @@ class BoxIntegrationApp {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    /**
-     * Copy metadata value to clipboard
-     */
-    copyMetadataValue(value) {
-        navigator.clipboard.writeText(value).then(() => {
-            this.showCopyFeedback(event.target);
-        }).catch(err => {
-            console.error('Failed to copy metadata value: ', err);
-            this.showError('Failed to copy to clipboard');
-        });
     }
 
     /**
