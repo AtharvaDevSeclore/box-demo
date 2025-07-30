@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Box Integration App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 30px;
+        }
+        .parameter-section {
+            margin-bottom: 30px;
+        }
+        .parameter-section h2 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .parameter-item {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .parameter-name {
+            font-weight: bold;
+            color: #495057;
+            min-width: 200px;
+        }
+        .parameter-value {
+            color: #6c757d;
+            word-break: break-all;
+            flex: 1;
+            margin-left: 20px;
+        }
+        .no-parameters {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px;
+        }
+        .timestamp {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        .copy-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 10px;
+            transition: background 0.3s;
+        }
+        .copy-button:hover {
+            background: #5a6fd8;
+        }
+        .copy-button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 Box Integration App</h1>
+            <p>Displaying all query parameters from the URL</p>
+        </div>
+        
+        <div class="content">
+            <div class="parameter-section">
+                <h2>🔍 Query Parameters</h2>
+                <div id="parameters-container">
+                    <!-- Parameters will be populated here -->
+                </div>
+            </div>
+            
+            <div class="parameter-section">
+                <h2>📋 Raw URL</h2>
+                <div class="parameter-item">
+                    <span class="parameter-name">Current URL:</span>
+                    <span class="parameter-value" id="current-url"></span>
+                    <button class="copy-button" onclick="copyToClipboard('current-url')">Copy</button>
+                </div>
+            </div>
+            
+            <div class="timestamp" id="timestamp">
+                <!-- Timestamp will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
