@@ -213,6 +213,9 @@ class BoxIntegrationApp {
 
             console.log('Successfully obtained access token');
             
+            // Test authentication first
+            await this.testAuthentication(tokenResponse.access_token);
+            
             // List all files
             await this.listAllFiles(tokenResponse.access_token);
             
@@ -229,6 +232,8 @@ class BoxIntegrationApp {
                 errorMessage = 'Access denied: The application may not have permission to access files.';
             } else if (errorMessage.includes('404')) {
                 errorMessage = 'Files not found: The application may not have access to any files.';
+            } else if (errorMessage.includes('400')) {
+                errorMessage = 'Bad request: The API request format may be incorrect. Check console for details.';
             }
             
             this.showFilesError('Failed to fetch files: ' + errorMessage);
@@ -264,12 +269,12 @@ class BoxIntegrationApp {
     }
 
     /**
-     * List all files accessible to the application
+     * Test authentication by getting current user info
      */
-    async listAllFiles(accessToken) {
-        console.log('Fetching all files...');
+    async testAuthentication(accessToken) {
+        console.log('Testing authentication...');
         
-        const response = await fetch(`${this.boxApiBase}/files?limit=100&fields=id,name,size,created_at,modified_at,owned_by,type`, {
+        const response = await fetch(`${this.boxApiBase}/users/me`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -277,17 +282,97 @@ class BoxIntegrationApp {
             }
         });
 
-        console.log(`Files API Response Status: ${response.status}`);
-
+        console.log(`Auth test response: ${response.status}`);
+        
         if (!response.ok) {
             const errorData = await response.json();
-            console.error('Box API Error Response:', errorData);
-            throw new Error(`Failed to fetch files: ${response.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
+            console.error('Auth test failed:', errorData);
+            throw new Error(`Authentication test failed: ${response.status} - ${errorData.message || errorData.error || 'Unknown error'}`);
         }
 
-        const filesData = await response.json();
-        console.log('Successfully retrieved files:', filesData);
-        this.displayFilesList(filesData.entries);
+        const userData = await response.json();
+        console.log('Authentication successful, user:', userData);
+    }
+
+    /**
+     * List all files accessible to the application
+     */
+    async listAllFiles(accessToken) {
+        console.log('Fetching all files...');
+        console.log('Access token:', accessToken.substring(0, 20) + '...');
+        
+        // Try different approaches to get files
+        const approaches = [
+            // Approach 1: Simple files endpoint without fields
+            {
+                url: `${this.boxApiBase}/files?limit=50`,
+                description: 'Simple files endpoint'
+            },
+            // Approach 2: Root folder contents
+            {
+                url: `${this.boxApiBase}/folders/0/items?limit=50`,
+                description: 'Root folder contents'
+            },
+            // Approach 3: Files with minimal fields
+            {
+                url: `${this.boxApiBase}/files?limit=25&fields=id,name,size`,
+                description: 'Files with minimal fields'
+            }
+        ];
+
+        for (let i = 0; i < approaches.length; i++) {
+            const approach = approaches[i];
+            console.log(`Trying approach ${i + 1}: ${approach.description}`);
+            console.log('Request URL:', approach.url);
+            
+            try {
+                const response = await fetch(approach.url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log(`Response Status: ${response.status}`);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (response.ok) {
+                    const filesData = await response.json();
+                    console.log('Successfully retrieved files:', filesData);
+                    
+                    // Handle both files and folder items responses
+                    const entries = filesData.entries || filesData;
+                    this.displayFilesList(entries);
+                    return;
+                } else {
+                    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    
+                    try {
+                        const errorData = await response.json();
+                        console.error(`Approach ${i + 1} failed:`, errorData);
+                        errorMessage = `${response.status} - ${errorData.message || errorData.error || errorData.error_description || 'Unknown error'}`;
+                    } catch (parseError) {
+                        console.error('Could not parse error response:', parseError);
+                        errorMessage = `${response.status} - Could not parse error response`;
+                    }
+                    
+                    console.log(`Approach ${i + 1} failed: ${errorMessage}`);
+                    
+                    // If this is the last approach, throw the error
+                    if (i === approaches.length - 1) {
+                        throw new Error(`All approaches failed. Last error: ${errorMessage}`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Approach ${i + 1} error:`, error);
+                
+                // If this is the last approach, throw the error
+                if (i === approaches.length - 1) {
+                    throw error;
+                }
+            }
+        }
     }
 
     /**
@@ -313,6 +398,7 @@ class BoxIntegrationApp {
             const createdAt = file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown';
             const modifiedAt = file.modified_at ? new Date(file.modified_at).toLocaleDateString() : 'Unknown';
             const owner = file.owned_by ? file.owned_by.name : 'Unknown';
+            const fileType = file.type || 'Unknown';
             
             filesHtml += `
                 <div class="file-item">
@@ -321,10 +407,10 @@ class BoxIntegrationApp {
                         <div class="file-details">
                             <span class="file-id">ID: ${file.id}</span>
                             <span class="file-size">Size: ${fileSize}</span>
-                            <span class="file-type">Type: ${file.type}</span>
-                            <span class="file-owner">Owner: ${this.escapeHtml(owner)}</span>
-                            <span class="file-created">Created: ${createdAt}</span>
-                            <span class="file-modified">Modified: ${modifiedAt}</span>
+                            <span class="file-type">Type: ${fileType}</span>
+                            ${owner !== 'Unknown' ? `<span class="file-owner">Owner: ${this.escapeHtml(owner)}</span>` : ''}
+                            ${createdAt !== 'Unknown' ? `<span class="file-created">Created: ${createdAt}</span>` : ''}
+                            ${modifiedAt !== 'Unknown' ? `<span class="file-modified">Modified: ${modifiedAt}</span>` : ''}
                         </div>
                     </div>
                     <div class="file-actions">
